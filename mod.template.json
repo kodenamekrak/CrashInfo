@@ -1,0 +1,15 @@
+{
+    "_QPVersion": "0.1.2",
+    "name": "${mod_name}",
+    "id": "${mod_id}",
+    "author": "KodenameKRAK",
+    "version": "${version}",
+    "packageId": "com.beatgames.beatsaber",
+    "packageVersion": "1.25.1",
+    "description": "Shows backtraces for recent crashes ingame if crash reporter uploads crashes. Mainly intended for those who dont know how to read logs.",
+    "dependencies": [],
+    "modFiles": [],
+    "libraryFiles": [],
+    "fileCopies": [],
+    "copyExtensions": []
+  }

@@ -12,6 +12,8 @@
 #include <iostream>
 #include <fstream>
 #include <regex>
+#include <vector>
+#include <string>
 
 DEFINE_CONFIG(ModConfig);
 
@@ -21,7 +23,7 @@ using namespace QuestUI;
 
 bool shouldShowPopup;
 const string crUrl = "https://analyzer.questmodding.com/api/crashes";
-ArrayW<string> culprits;
+string culprits[10]; // Theres no way a crash would have more than 10 different libs
 
 void LoadCrashes()
 {
@@ -59,14 +61,10 @@ void LoadCrashes()
         getModConfig().LastCrash.SetValue(crashId);
     getLogger().info("Latest crash: %s", crashId.c_str());
 
-    //if (crashId == getModConfig().LastCrash.GetValue() || !getModConfig().ShowPopup.GetValue())
-      //  return;
-    
-    shouldShowPopup = true;
+    // if (crashId == getModConfig().LastCrash.GetValue() || !getModConfig().ShowPopup.GetValue())
+    //   return;
 
-    getLogger().info("Regexing crash");
-    
-    regex regexp("#[0-9]+ pc [0-9a-z]+  /data/data/com.beatgames.beatsaber/files/lib[a-zA-Z0-9_-]+.so");
+    shouldShowPopup = true;
 
     response = Utils::RequestURL(crUrl + "/" + crashId);
     Json::Value crash;
@@ -77,25 +75,38 @@ void LoadCrashes()
         return;
     }
     string stacktrace = crash["stacktrace"].asString();
-    getLogger().info("%s", stacktrace.c_str());
+
+    getLogger().info("Regexing crash");
+
+    regex regexp("#[0-9]+ pc [0-9a-z]+  /data/data/com.beatgames.beatsaber/files/lib[a-zA-Z0-9_.-]+.so");
+    regex libreg("lib[a-zA-Z0-9_.-]+.so");
 
     sregex_iterator iter(stacktrace.begin(), stacktrace.end(), regexp);
     sregex_iterator end;
 
-    regex libreg("lib[a-zA-Z0-9_-]+.so");
-    smatch m;
-
-    while(iter != end)
+    while (iter != end)
     {
-        for(unsigned i = 0; i < iter->size(); ++i)
+        for (unsigned i = 0; i < iter->size(); ++i)
         {
-            line = (*iter)[i];
-            getLogger().info("%s", line.c_str());
+            smatch m;
+            std::cout << "the " << i + 1 << "th match"
+                      << ": " << (*iter)[i] << std::endl;
+            line = (*iter)[i].str();
             regex_search(line, m, libreg);
-            getLogger().info("%s", m[0].str().c_str());
+            //getLogger().info("%s", m[0].str().c_str());
+            //if(!(std::find(std::begin(culprits), std::end(culprits), m[0].str()) != std::end(culprits)))
+                //for(int i = 0; i < culprits.size(); i++)
+            // I DONT KNOW HOW TO USE ARRAYS THIS DOESNT WORK
+            if((int)culprits->find(m[0].str())) 
+                culprits->append(m[0].str());
+            else 
+                getLogger().info("Lib already in list");
         }
         ++iter;
     }
+
+    for (auto val : culprits)
+        getLogger().info("aaa %s", val.c_str());
 }
 
 MAKE_AUTO_HOOK_MATCH(MainMenuViewController_DidActivate, &MainMenuViewController::DidActivate, void, MainMenuViewController *self, bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling)
@@ -106,7 +117,7 @@ MAKE_AUTO_HOOK_MATCH(MainMenuViewController_DidActivate, &MainMenuViewController
     {
         if (shouldShowPopup)
         {
-            //auto modal = BeatSaberUI::CreateModal(self->get_transform(), {35,60}, nullptr);
+            auto modal = BeatSaberUI::CreateModal(self->get_transform(), {35,60}, nullptr);
         }
     }
 }

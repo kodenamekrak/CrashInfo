@@ -77,6 +77,7 @@ void LoadCrashes()
         return;
     }
     string stacktrace = crash["stacktrace"].asString();
+    getLogger().info("%s", stacktrace.c_str());
 
     sregex_iterator iter(stacktrace.begin(), stacktrace.end(), regexp);
     sregex_iterator end;

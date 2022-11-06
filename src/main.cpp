@@ -23,7 +23,7 @@ using namespace QuestUI;
 
 bool shouldShowPopup;
 const string crUrl = "https://analyzer.questmodding.com/api/crashes";
-string culprits[10]; // Theres no way a crash would have more than 10 different libs
+vector<string> culprits;
 
 void LoadCrashes()
 {
@@ -56,6 +56,7 @@ void LoadCrashes()
         return;
     }
     string crashId = crashes[0]["crashId"].asString();
+    crashId = "BsqG"; // Testing
 
     if (getModConfig().LastCrash.GetValue() == "")
         getModConfig().LastCrash.SetValue(crashId);
@@ -89,21 +90,14 @@ void LoadCrashes()
         for (unsigned i = 0; i < iter->size(); ++i)
         {
             smatch m;
-            std::cout << "the " << i + 1 << "th match"
-                      << ": " << (*iter)[i] << std::endl;
             line = (*iter)[i].str();
             regex_search(line, m, libreg);
-            //getLogger().info("%s", m[0].str().c_str());
-            //if(!(std::find(std::begin(culprits), std::end(culprits), m[0].str()) != std::end(culprits)))
-                //for(int i = 0; i < culprits.size(); i++)
-            // I DONT KNOW HOW TO USE ARRAYS THIS DOESNT WORK
-            if((int)culprits->find(m[0].str())) 
-                culprits->append(m[0].str());
-            else 
-                getLogger().info("Lib already in list");
+            culprits.push_back(m[0].str());
         }
         ++iter;
     }
+    std::sort( culprits.begin(), culprits.end() );
+    culprits.erase( std::unique( culprits.begin(), culprits.end() ), culprits.end() );
 
     for (auto val : culprits)
         getLogger().info("aaa %s", val.c_str());
@@ -117,7 +111,7 @@ MAKE_AUTO_HOOK_MATCH(MainMenuViewController_DidActivate, &MainMenuViewController
     {
         if (shouldShowPopup)
         {
-            auto modal = BeatSaberUI::CreateModal(self->get_transform(), {35,60}, nullptr);
+            auto modal = BeatSaberUI::CreateModal(self->get_transform(), {35, 60}, nullptr);
         }
     }
 }

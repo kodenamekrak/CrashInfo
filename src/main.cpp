@@ -5,8 +5,8 @@
 #include "questui/shared/QuestUI.hpp"
 #include "questui/shared/BeatSaberUI.hpp"
 #include "GlobalNamespace/MainMenuViewController.hpp"
-#include "json/json.h"
 #include "modloader/shared/modloader.hpp"
+#include "beatsaber-hook/shared/rapidjson/include/rapidjson/document.h"
 
 #include <stdio.h>
 #include <iostream>
@@ -24,14 +24,16 @@ using namespace QuestUI;
 bool shouldShowPopup;
 const string crUrl = "https://analyzer.questmodding.com/api/crashes";
 vector<string> culprits;
+const vector<string> coreMods = {"libcustom-types.so", "libpinkcore.so", "libplaylistcore.so",
+                                 "libplaylistmanager.so", "libcodegen.so", "libdatakeeper.so",
+                                 "libmod-list.so", "libquestui.so", "libsongdownloader.so",
+                                 "libsongloader.so"};
 
 void LoadCrashes()
 {
     string content;
     string line;
     fstream myfile;
-    Json::Value CrashReporterJson;
-    Json::Reader reader;
 
     myfile.open("/sdcard/moddata/com.beatgames.beatsaber/configs/crashreporter.json");
     if (myfile.is_open())
@@ -41,21 +43,19 @@ void LoadCrashes()
     }
     myfile.close();
     getLogger().info("Content: %s", content.c_str());
+    rapidjson::Document document;
+    document.Parse(content.c_str());
 
-    reader.parse(content, CrashReporterJson);
-    const string userId = CrashReporterJson["UserId"].asString();
+    const string userId = document["UserId"].GetString();
     const string userSpec = "?userId=";
+    getLogger().info("%s", userId.c_str());
 
     string response = Utils::RequestURL(crUrl + userSpec + userId);
 
-    Json::Value crashes;
-    bool parsingSuccessful = reader.parse(response, crashes);
-    if (!parsingSuccessful)
-    {
-        getLogger().info("Error parsing the crash list");
-        return;
-    }
-    string crashId = crashes[0]["crashId"].asString();
+    rapidjson::Document crashes;
+    crashes.Parse(response);
+
+    string crashId = crashes[0]["crashId"].GetString();
     crashId = "BsqG"; // Testing
 
     if (getModConfig().LastCrash.GetValue() == "")
@@ -68,14 +68,10 @@ void LoadCrashes()
     shouldShowPopup = true;
 
     response = Utils::RequestURL(crUrl + "/" + crashId);
-    Json::Value crash;
-    parsingSuccessful = reader.parse(response, crash);
-    if (!parsingSuccessful)
-    {
-        getLogger().info("Error parsing the crash");
-        return;
-    }
-    string stacktrace = crash["stacktrace"].asString();
+    rapidjson::Document crash;
+    crash.Parse(response);
+    
+    string stacktrace = crash["stacktrace"].GetString();
 
     getLogger().info("Regexing crash");
 
@@ -96,8 +92,8 @@ void LoadCrashes()
         }
         ++iter;
     }
-    std::sort( culprits.begin(), culprits.end() );
-    culprits.erase( std::unique( culprits.begin(), culprits.end() ), culprits.end() );
+    std::sort(culprits.begin(), culprits.end());
+    culprits.erase(std::unique(culprits.begin(), culprits.end()), culprits.end());
 
     for (auto val : culprits)
         getLogger().info("aaa %s", val.c_str());
@@ -109,10 +105,18 @@ MAKE_AUTO_HOOK_MATCH(MainMenuViewController_DidActivate, &MainMenuViewController
 
     if (firstActivation)
     {
-        if (shouldShowPopup)
+        auto modal = BeatSaberUI::CreateModal(self->get_transform(), {50, 60}, nullptr);
+        auto modalContainer = BeatSaberUI::CreateScrollableModalContainer(modal);
+
+        for (auto val : culprits)
         {
-            auto modal = BeatSaberUI::CreateModal(self->get_transform(), {35, 60}, nullptr);
+            if (std::find(coreMods.begin(), coreMods.end(), val) != coreMods.end())
+                val += " (Core mod)";
+
+            BeatSaberUI::CreateText(modalContainer->get_transform(), val.c_str());
         }
+
+        modal->Show(true, false, nullptr);
     }
 }
 

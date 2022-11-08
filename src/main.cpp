@@ -1,12 +1,13 @@
 #include "main.hpp"
 #include "SettingsViewController.hpp"
-#include "Utils/WebUtils.hpp"
+#include "Utils/Utils.hpp"
 #include "ModConfig.hpp"
 #include "questui/shared/QuestUI.hpp"
 #include "questui/shared/BeatSaberUI.hpp"
 #include "GlobalNamespace/MainMenuViewController.hpp"
 #include "modloader/shared/modloader.hpp"
 #include "beatsaber-hook/shared/rapidjson/include/rapidjson/document.h"
+#include "GlobalNamespace/SinglePlayerLevelSelectionFlowCoordinator.hpp"
 
 #include <stdio.h>
 #include <iostream>
@@ -24,10 +25,6 @@ using namespace QuestUI;
 bool shouldShowPopup;
 const string crUrl = "https://analyzer.questmodding.com/api/crashes";
 vector<string> culprits;
-const vector<string> coreMods = {"libcustom-types.so", "libpinkcore.so", "libplaylistcore.so",
-                                 "libplaylistmanager.so", "libcodegen.so", "libdatakeeper.so",
-                                 "libmod-list.so", "libquestui.so", "libsongdownloader.so",
-                                 "libsongloader.so"};
 
 void LoadCrashes()
 {
@@ -47,19 +44,15 @@ void LoadCrashes()
     document.Parse(content.c_str());
 
     const string userId = document["UserId"].GetString();
-    const string userSpec = "?userId=";
-    getLogger().info("%s", userId.c_str());
+    
+    auto crashes = Utils::GetCrashesFromUser(userId);
 
-    string response = Utils::RequestURL(crUrl + userSpec + userId);
-
-    rapidjson::Document crashes;
-    crashes.Parse(response);
-
-    string crashId = crashes[0]["crashId"].GetString();
-    crashId = "BsqG"; // Testing
+    string crashId = crashes[0];
+    //crashId = "BsqG"; // Testing
 
     if (getModConfig().LastCrash.GetValue() == "")
         getModConfig().LastCrash.SetValue(crashId);
+
     getLogger().info("Latest crash: %s", crashId.c_str());
 
     // if (crashId == getModConfig().LastCrash.GetValue() || !getModConfig().ShowPopup.GetValue())
@@ -67,33 +60,7 @@ void LoadCrashes()
 
     shouldShowPopup = true;
 
-    response = Utils::RequestURL(crUrl + "/" + crashId);
-    rapidjson::Document crash;
-    crash.Parse(response);
-    
-    string stacktrace = crash["stacktrace"].GetString();
-
-    getLogger().info("Regexing crash");
-
-    regex regexp("#[0-9]+ pc [0-9a-z]+  /data/data/com.beatgames.beatsaber/files/lib[a-zA-Z0-9_.-]+.so");
-    regex libreg("lib[a-zA-Z0-9_.-]+.so");
-
-    sregex_iterator iter(stacktrace.begin(), stacktrace.end(), regexp);
-    sregex_iterator end;
-
-    while (iter != end)
-    {
-        for (unsigned i = 0; i < iter->size(); ++i)
-        {
-            smatch m;
-            line = (*iter)[i].str();
-            regex_search(line, m, libreg);
-            culprits.push_back(m[0].str());
-        }
-        ++iter;
-    }
-    std::sort(culprits.begin(), culprits.end());
-    culprits.erase(std::unique(culprits.begin(), culprits.end()), culprits.end());
+    culprits = Utils::GetCulpritsFromId(crashId);
 
     for (auto val : culprits)
         getLogger().info("aaa %s", val.c_str());
@@ -103,16 +70,13 @@ MAKE_AUTO_HOOK_MATCH(MainMenuViewController_DidActivate, &MainMenuViewController
 {
     MainMenuViewController_DidActivate(self, firstActivation, addedToHierarchy, screenSystemEnabling);
 
-    if (firstActivation)
+    if (firstActivation && shouldShowPopup)
     {
         auto modal = BeatSaberUI::CreateModal(self->get_transform(), {50, 60}, nullptr);
         auto modalContainer = BeatSaberUI::CreateScrollableModalContainer(modal);
 
         for (auto val : culprits)
         {
-            if (std::find(coreMods.begin(), coreMods.end(), val) != coreMods.end())
-                val += " (Core mod)";
-
             BeatSaberUI::CreateText(modalContainer->get_transform(), val.c_str());
         }
 
@@ -131,7 +95,7 @@ Configuration &getConfig()
 
 Logger &getLogger()
 {
-    static Logger *logger = new Logger(modInfo);
+    static Logger *logger = new Logger(modInfo, LoggerOptions(false, true));
     return *logger;
 }
 
@@ -158,7 +122,7 @@ extern "C" void load()
     il2cpp_functions::Init();
 
     QuestUI::Init();
-    QuestUI::Register::RegisterModSettingsViewController<crashinfo::SettingsViewController *>(modInfo, "CrashInfo");
+    QuestUI::Register::RegisterMainMenuModSettingsViewController<crashinfo::CrashListViewController *>(modInfo, "CrashInfo");
 
     getModConfig().Init(modInfo);
 

@@ -1,5 +1,5 @@
 #include "main.hpp"
-#include "SettingsViewController.hpp"
+#include "CrashListViewController.hpp"
 #include "Utils/Utils.hpp"
 #include "ModConfig.hpp"
 #include "questui/shared/QuestUI.hpp"
@@ -7,7 +7,7 @@
 #include "GlobalNamespace/MainMenuViewController.hpp"
 #include "modloader/shared/modloader.hpp"
 #include "beatsaber-hook/shared/rapidjson/include/rapidjson/document.h"
-#include "GlobalNamespace/SinglePlayerLevelSelectionFlowCoordinator.hpp"
+#include "Utils/WebUtils.hpp"
 
 #include <stdio.h>
 #include <iostream>
@@ -28,50 +28,40 @@ vector<string> culprits;
 
 void LoadCrashes()
 {
-    string content;
-    string line;
-    fstream myfile;
+    getLogger().info("Loading crashes");
+    string userId = Utils::GetUserId();
+    Utils::GetCrashesFromUser();
 
-    myfile.open("/sdcard/moddata/com.beatgames.beatsaber/configs/crashreporter.json");
-    if (myfile.is_open())
+    string url = crUrl + "?userId=" + userId;
+    WebUtils::GetAsync(url, [&](long code, string response)
     {
-        while (getline(myfile, line))
-            content += line;
-    }
-    myfile.close();
-    getLogger().info("Content: %s", content.c_str());
-    rapidjson::Document document;
-    document.Parse(content.c_str());
+        rapidjson::Document doc;
+        doc.Parse(response.c_str());
+        string i = doc[0]["crashId"].GetString();
+        string last = getModConfig().LastCrash.GetValue();
+        getModConfig().LastCrash.SetValue(i);
+        if(!getModConfig().ShowPopup.GetValue() || last == "" || last == i)
+            return;
 
-    const string userId = document["UserId"].GetString();
-    
-    auto crashes = Utils::GetCrashesFromUser(userId);
+        string re = WebUtils::Get(crUrl + "/" + i, 10);
+        doc.Parse(re.c_str());
+        culprits = Utils::GetCulprits(doc["stacktrace"].GetString());
 
-    string crashId = crashes[0];
-    //crashId = "BsqG"; // Testing
+        shouldShowPopup = true;
+    });
 
-    if (getModConfig().LastCrash.GetValue() == "")
-        getModConfig().LastCrash.SetValue(crashId);
-
-    getLogger().info("Latest crash: %s", crashId.c_str());
-
-    // if (crashId == getModConfig().LastCrash.GetValue() || !getModConfig().ShowPopup.GetValue())
-    //   return;
-
-    shouldShowPopup = true;
-
-    culprits = Utils::GetCulpritsFromId(crashId);
-
-    for (auto val : culprits)
-        getLogger().info("aaa %s", val.c_str());
 }
 
 MAKE_AUTO_HOOK_MATCH(MainMenuViewController_DidActivate, &MainMenuViewController::DidActivate, void, MainMenuViewController *self, bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling)
 {
     MainMenuViewController_DidActivate(self, firstActivation, addedToHierarchy, screenSystemEnabling);
 
+    // Not done yet
     if (firstActivation && shouldShowPopup)
     {
+        if(culprits.empty())
+            return;
+    
         auto modal = BeatSaberUI::CreateModal(self->get_transform(), {50, 60}, nullptr);
         auto modalContainer = BeatSaberUI::CreateScrollableModalContainer(modal);
 
@@ -116,13 +106,11 @@ extern "C" void load()
         getLogger().info("CrashReporter not found, mod is not installing");
         return;
     }
-    else
-        getLogger().info("CrashReporter found");
 
     il2cpp_functions::Init();
 
     QuestUI::Init();
-    QuestUI::Register::RegisterMainMenuModSettingsViewController<crashinfo::CrashListViewController *>(modInfo, "CrashInfo");
+    QuestUI::Register::RegisterAllModSettingsViewController<crashinfo::CrashInfoListViewController *>(modInfo, "CrashInfo");
 
     getModConfig().Init(modInfo);
 

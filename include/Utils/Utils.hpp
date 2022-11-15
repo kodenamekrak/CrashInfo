@@ -1,16 +1,15 @@
 #include "main.hpp"
 
 #include <vector>
+#include <functional>
 
 using namespace std;
 
 namespace Utils
 {
-    size_t writefunc(void *ptr, size_t size, size_t nmemb, string *s);
+    string GetUserId();
 
-    string RequestURL(string url);
+    std::vector<string> GetCulprits(string stacktrace, bool createModal = false);
 
-    vector<string> GetCulpritsFromId(string crashId);
-
-    vector<string> GetCrashesFromUser(string userId = "", bool useOldIfExists = false);
+    vector<string> GetCrashesFromUser();
 }

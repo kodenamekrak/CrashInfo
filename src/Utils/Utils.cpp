@@ -2,62 +2,50 @@
 #include "libcurl/shared/curl.h"
 #include "beatsaber-hook/shared/rapidjson/include/rapidjson/document.h"
 #include "ModConfig.hpp"
+#include "Utils/WebUtils.hpp"
+#include "CrashListViewController.hpp"
+#include "questui/shared/CustomTypes/Components/MainThreadScheduler.hpp"
+#include "questui/shared/BeatSaberUI.hpp"
 
+#include <fstream>
 #include <regex>
+#include <thread>
 
 const string crUrl = "https://analyzer.questmodding.com/api/crashes";
 string user;
 vector<string> crashIds;
+vector<string> culps;
 const vector<string> coreMods = {"libcustom-types.so", "libpinkcore.so", "libplaylistcore.so",
                                  "libplaylistmanager.so", "libcodegen.so", "libdatakeeper.so",
                                  "libmod-list.so", "libquestui.so", "libsongdownloader.so",
-                                 "libsongloader.so"};
+                                 "libsongloader.so", "libbsml.so"};
 
 namespace Utils
 {
-    size_t writefunc(void *ptr, size_t size, size_t nmemb, string *s)
+    string GetUserId()
     {
-        s->append(static_cast<char *>(ptr), size * nmemb);
-        return size * nmemb;
+        string content;
+        string line;
+        fstream myfile;
+
+        myfile.open("/sdcard/moddata/com.beatgames.beatsaber/configs/crashreporter.json");
+        if (myfile.is_open())
+        {
+            while (getline(myfile, line))
+                content += line;
+        }
+        myfile.close();
+        rapidjson::Document document;
+        document.Parse(content.c_str());
+
+        user = document["UserId"].GetString();
+        getLogger().info("User: %s", user.c_str());
+        return user;
     }
 
-    string RequestURL(string url)
+    vector<string> GetCulprits(string stacktrace, bool createModal)
     {
-        CURL *curl;
-        CURLcode res;
-        string s;
-
-        curl_global_init(CURL_GLOBAL_DEFAULT);
-
-        curl = curl_easy_init();
-        if (!curl)
-            return nullptr;
-
-        getLogger().info("Requesting URL: %s", url.c_str());
-
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &s);
-
-        res = curl_easy_perform(curl);
-
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
-        return s;
-    }
-
-    vector<string> GetCulpritsFromId(string crashId)
-    {
-        vector<string> culps;
-
-        string response = RequestURL(crUrl + "/" + crashId);
-        rapidjson::Document crash;
-        crash.Parse(response);
-
-        string stacktrace = crash["stacktrace"].GetString();
-
-        getLogger().info("Regexing crash");
+        culps.clear();
 
         regex regexp("#[0-9]+ pc [0-9a-z]+  /data/data/com.beatgames.beatsaber/files/lib[a-zA-Z0-9_.-]+.so");
         regex libreg("lib[a-zA-Z0-9_.-]+.so");
@@ -73,43 +61,51 @@ namespace Utils
                 smatch m;
                 line = (*iter)[i].str();
                 regex_search(line, m, libreg);
-                culps.push_back(m[0].str());
+                string lib = m[0].str();
+                int index = lib.length();
+                if (std::find(coreMods.begin(), coreMods.end(), lib) != coreMods.end())
+                    lib += " (Core mod)";
+                if(getModConfig().Simple.GetValue())
+                {
+                    lib.erase(0, 3);
+                    lib.erase(index - 6, 3);
+                }
+                culps.push_back(lib);
             }
             ++iter;
         }
 
+
         std::sort(culps.begin(), culps.end());
         culps.erase(std::unique(culps.begin(), culps.end()), culps.end());
 
-        for (int i = 0; i < culps.size(); i++)
-        {
-            if (std::find(coreMods.begin(), coreMods.end(), culps[i]) != coreMods.end())
-                culps[i] += " (Core mod)";
-        }
+        if(culps.empty())
+            culps.push_back("Could not find culprit");
+        // for(auto val : culps)
+        //     getLogger().info("lib: %s", val.c_str());
 
+        if(createModal)
+            CreateCrashModal(culps);
+        
         return culps;
     }
 
-    vector<string> GetCrashesFromUser(string userId, bool useOldIfExists)
+    vector<string> GetCrashesFromUser()
     {
-        if(userId != "")
-            user = userId;
-
-        if(useOldIfExists && !crashIds.empty())
-            return crashIds;
-
-        string response = Utils::RequestURL(crUrl + "?userId=" + user);
-
-        rapidjson::Document crashes;
-        crashes.Parse(response);
-
-        crashIds.clear();
-        for(int i = 0; i < crashes.Size(); i++)
+        string url = crUrl + "?userId=" + user;
+        WebUtils::GetAsync(url, [&](long code, string response)
         {
-            string id = crashes[i]["crashId"].GetString();
-            crashIds.push_back(id);
-        }
-
+            rapidjson::Document crashes;
+            crashes.Parse(response.c_str());
+            
+            crashIds.clear();
+            for(int i = 0; i < crashes.Size(); i++)
+            {
+                string id = crashes[i]["crashId"].GetString();
+                crashIds.push_back(id);
+            }
+            getLogger().info("Crash ids: %lu", crashIds.size());
+        });
         return crashIds;
     }
 }

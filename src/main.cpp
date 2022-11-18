@@ -18,7 +18,6 @@ DEFINE_CONFIG(ModConfig);
 using namespace GlobalNamespace;
 using namespace QuestUI;
 
-
 bool shouldShowPopup;
 const std::string crUrl = "https://analyzer.questmodding.com/api/crashes";
 std::vector<std::string> culprits;

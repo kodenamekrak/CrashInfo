@@ -15,11 +15,10 @@
 DEFINE_TYPE(crashinfo, CrashInfoListViewController);
 
 using namespace QuestUI;
-using namespace std;
 
 UnityEngine::Transform *settingsContainerTransform;
 
-void CreateCrashModal(vector<string> culprits)
+void CreateCrashModal(std::vector<std::string> culprits)
 {
     auto modal = QuestUI::BeatSaberUI::CreateModal(settingsContainerTransform, {60, 70}, nullptr);
     auto modalContainer = QuestUI::BeatSaberUI::CreateScrollableModalContainer(modal);
@@ -53,15 +52,15 @@ void crashinfo::CrashInfoListViewController::DidActivate(bool firstActivation, b
         {
             if(i == 6)
                 break;
-            string text = to_string(i + 1) + " - " + crashes[i];
+            std::string text = std::to_string(i + 1) + " - " + crashes[i];
             QuestUI::ClickableText* t = BeatSaberUI::CreateClickableText(settingsContainerTransform, text.c_str(), {0, 0}, [&, crashes, i]
             {
-                string url = "https://analyzer.questmodding.com/api/crashes/" + crashes[i];
-                WebUtils::GetAsync(url, [&](long code, string response)
+                std::string url = "https://analyzer.questmodding.com/api/crashes/" + crashes[i];
+                WebUtils::GetAsync(url, [&](long code, std::string response)
                 {
                     rapidjson::Document doc;
                     doc.Parse(response.c_str());
-                    string stacktrace = doc["stacktrace"].GetString();
+                    std::string stacktrace = doc["stacktrace"].GetString();
                     QuestUI::MainThreadScheduler::Schedule([stacktrace]()
                     {
                         CreateCrashModal(Utils::GetCulprits(stacktrace));

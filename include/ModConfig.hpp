@@ -5,7 +5,7 @@
 
 DECLARE_CONFIG(ModConfig,
     CONFIG_VALUE(LastCrash, std::string, "Last Crash", "");
-    CONFIG_VALUE(ShowPopup, bool, "Show Popup", true);
+    CONFIG_VALUE(ShowPopup, bool, "Check for new crash on startup", true);
     CONFIG_VALUE(Simple, bool, "Simple", true);
 
     CONFIG_INIT_FUNCTION(

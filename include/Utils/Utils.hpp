@@ -1,15 +1,12 @@
 #include "main.hpp"
 
 #include <vector>
-#include <functional>
-
-using namespace std;
 
 namespace Utils
 {
-    string GetUserId();
+    std::string GetUserId();
 
-    std::vector<string> GetCulprits(string stacktrace, bool createModal = false);
+    std::vector<std::string> GetCulprits(std::string stacktrace);
 
-    vector<string> GetCrashesFromUser();
+    std::vector<std::string> GetCrashesFromUser();
 }

@@ -17,8 +17,6 @@
 
 extern Logger &getLogger();
 
-using namespace std;
-
 namespace WebUtils
 {
     // https://stackoverflow.com/a/55660581
@@ -178,9 +176,9 @@ namespace WebUtils
         t.detach();
     }
 
-    string Get(std::string url, long timeout) {
+    std::string Get(std::string url, long timeout) {
         // Init curl
-        string val;
+        std::string val;
         auto* curl = curl_easy_init();
         struct curl_slist *headers = NULL;
         headers = curl_slist_append(headers, "Accept: */*");

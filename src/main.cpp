@@ -4,59 +4,52 @@
 #include "ModConfig.hpp"
 #include "questui/shared/QuestUI.hpp"
 #include "questui/shared/BeatSaberUI.hpp"
-#include "GlobalNamespace/MainMenuViewController.hpp"
 #include "modloader/shared/modloader.hpp"
 #include "beatsaber-hook/shared/rapidjson/include/rapidjson/document.h"
 #include "Utils/WebUtils.hpp"
 
+#include "GlobalNamespace/MainMenuViewController.hpp"
+
 #include <stdio.h>
-#include <iostream>
-#include <fstream>
-#include <regex>
 #include <vector>
-#include <string>
 
 DEFINE_CONFIG(ModConfig);
 
 using namespace GlobalNamespace;
-using namespace std;
 using namespace QuestUI;
 
 bool shouldShowPopup;
-const string crUrl = "https://analyzer.questmodding.com/api/crashes";
-vector<string> culprits;
+const std::string crUrl = "https://analyzer.questmodding.com/api/crashes";
+std::vector<std::string> culprits;
 
 void LoadCrashes()
 {
     getLogger().info("Loading crashes");
-    string userId = Utils::GetUserId();
-    Utils::GetCrashesFromUser();
+    std::string userId = Utils::GetUserId();
 
-    string url = crUrl + "?userId=" + userId;
-    WebUtils::GetAsync(url, [&](long code, string response)
+    std::thread thr([&]
     {
-        rapidjson::Document doc;
-        doc.Parse(response.c_str());
-        string i = doc[0]["crashId"].GetString();
-        string last = getModConfig().LastCrash.GetValue();
-        getModConfig().LastCrash.SetValue(i);
-        if(!getModConfig().ShowPopup.GetValue() || last == "" || last == i)
+        std::vector<std::string> crashes = Utils::GetCrashesFromUser();
+        std::string rec = crashes[0];
+        std::string last = getModConfig().LastCrash.GetValue();
+        getModConfig().LastCrash.SetValue(rec);
+        if(!getModConfig().ShowPopup.GetValue() || last == "" || last == rec)
             return;
 
-        string re = WebUtils::Get(crUrl + "/" + i, 10);
+        std::string re = WebUtils::Get(crUrl + "/" + rec, 10);
+        rapidjson::Document doc;
         doc.Parse(re.c_str());
         culprits = Utils::GetCulprits(doc["stacktrace"].GetString());
 
         shouldShowPopup = true;
     });
-
+    thr.detach();
 }
 
 MAKE_AUTO_HOOK_MATCH(MainMenuViewController_DidActivate, &MainMenuViewController::DidActivate, void, MainMenuViewController *self, bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling)
 {
     MainMenuViewController_DidActivate(self, firstActivation, addedToHierarchy, screenSystemEnabling);
 
-    // Not done yet
     if (firstActivation && shouldShowPopup)
     {
         if(culprits.empty())

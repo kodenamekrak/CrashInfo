@@ -1,12 +1,12 @@
 #include "main.hpp"
+#include "ModConfig.hpp"
 #include "CrashListViewController.hpp"
 #include "Utils/Utils.hpp"
-#include "ModConfig.hpp"
+#include "Utils/WebUtils.hpp"
 #include "questui/shared/QuestUI.hpp"
 #include "questui/shared/BeatSaberUI.hpp"
 #include "modloader/shared/modloader.hpp"
 #include "beatsaber-hook/shared/rapidjson/include/rapidjson/document.h"
-#include "Utils/WebUtils.hpp"
 
 #include "GlobalNamespace/MainMenuViewController.hpp"
 
@@ -25,11 +25,11 @@ std::vector<std::string> culprits;
 void LoadCrashes()
 {
     getLogger().info("Loading crashes");
-    std::string userId = Utils::GetUserId();
-
     std::thread thr([&]
     {
         std::vector<std::string> crashes = Utils::GetCrashesFromUser();
+        if(crashes.empty())
+            return;
         std::string rec = crashes[0];
         std::string last = getModConfig().LastCrash.GetValue();
         getModConfig().LastCrash.SetValue(rec);

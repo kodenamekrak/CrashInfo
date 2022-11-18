@@ -82,6 +82,8 @@ namespace Utils
 
     std::vector<std::string> GetCrashesFromUser()
     {
+        if(user == "")
+            GetUserId();
         std::string url = crUrl + "?userId=" + user;
         std::string response = WebUtils::Get(url, 10);
         rapidjson::Document crashes;

@@ -17,10 +17,11 @@ DEFINE_TYPE(crashinfo, CrashInfoListViewController);
 using namespace QuestUI;
 
 UnityEngine::Transform *settingsContainerTransform;
+UnityEngine::Transform *trans;
 
 void CreateCrashModal(std::vector<std::string> culprits)
 {
-    auto modal = QuestUI::BeatSaberUI::CreateModal(settingsContainerTransform, {60, 70}, nullptr);
+    auto modal = QuestUI::BeatSaberUI::CreateModal(trans, {60, 70}, nullptr);
     auto modalContainer = QuestUI::BeatSaberUI::CreateScrollableModalContainer(modal);
 
     auto texts = modal->GetComponentsInChildren<HMUI::CurvedTextMeshPro*>();
@@ -37,6 +38,7 @@ void crashinfo::CrashInfoListViewController::DidActivate(bool firstActivation, b
     {
         auto settingsContainer = BeatSaberUI::CreateScrollableSettingsContainer(get_transform());
         settingsContainerTransform = settingsContainer->get_transform();
+        trans = get_transform();
 
         AddConfigValueToggle(settingsContainerTransform, getModConfig().ShowPopup);
 
